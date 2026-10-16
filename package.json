@@ -1,0 +1,10 @@
+{
+  "name": "emeraldroguesaveditor",
+  "version": "1.0.0",
+  "description": "Browser-based save editor for Pokémon Emerald Rogue EX",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run-tests.js"
+  },
+  "license": "MIT"
+}

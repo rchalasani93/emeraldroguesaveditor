@@ -1,0 +1,48 @@
+#include "global.h"
+#include "pokemon_storage_system.h"
+#include "rogue.h"
+#include "item.h"
+const unsigned int vals[] = {
+  (unsigned int)(sizeof(struct SaveBlock2)),
+  (unsigned int)(offsetof(struct SaveBlock2, pokedex)),
+  (unsigned int)(offsetof(struct SaveBlock2, encryptionKey)),
+  (unsigned int)(offsetof(struct SaveBlock2, playerStyles)),
+  (unsigned int)(0x13),
+  (unsigned int)(sizeof(struct SaveBlock1)),
+  (unsigned int)(offsetof(struct SaveBlock1, playerPartyCount)),
+  (unsigned int)(offsetof(struct SaveBlock1, playerParty)),
+  (unsigned int)(offsetof(struct SaveBlock1, money)),
+  (unsigned int)(offsetof(struct SaveBlock1, bagCapacityUpgrades)),
+  (unsigned int)(offsetof(struct SaveBlock1, pcItems)),
+  (unsigned int)(offsetof(struct SaveBlock1, bagPockets)),
+  (unsigned int)(offsetof(struct SaveBlock1, flags)),
+  (unsigned int)(offsetof(struct SaveBlock1, vars)),
+  (unsigned int)(offsetof(struct SaveBlock1, gameStats)),
+  (unsigned int)(offsetof(struct SaveBlock1, pokedexBitFlags1)),
+  (unsigned int)(offsetof(struct SaveBlock1, pokedexBitFlags2)),
+  (unsigned int)(PC_ITEMS_COUNT),
+  (unsigned int)(BAG_ITEM_CAPACITY),
+  (unsigned int)(NUM_FLAG_BYTES),
+  (unsigned int)(VARS_COUNT),
+  (unsigned int)(NUM_DEX_FLAG_BYTES),
+  (unsigned int)(sizeof(struct Pokemon)),
+  (unsigned int)(sizeof(struct RoguePartyMon)),
+  (unsigned int)(sizeof(struct PokemonStorage)),
+  (unsigned int)(offsetof(struct PokemonStorage, boxes)),
+  (unsigned int)(offsetof(struct PokemonStorage, boxNames)),
+  (unsigned int)(offsetof(struct PokemonStorage, boxWallpapers)),
+  (unsigned int)(TOTAL_BOXES_COUNT),
+  (unsigned int)(ACTUAL_TOTAL_BOXES_COUNT),
+  (unsigned int)(IN_BOX_COUNT),
+  (unsigned int)(BOX_NAME_LENGTH),
+  (unsigned int)(NUM_SPECIES),
+  (unsigned int)(ITEMS_COUNT),
+  (unsigned int)(MOVES_COUNT),
+  (unsigned int)(sizeof(struct Pokedex)),
+  (unsigned int)(sizeof(struct ItemSlot)),
+};
+const unsigned int extra[] = {
+ offsetof(struct SaveBlock2, localTimeOffset), offsetof(struct SaveBlock2, encryptionKey), offsetof(struct SaveBlock2, follower), offsetof(struct SaveBlock2, pokemonHubName),
+ offsetof(struct SaveBlock1, bagSortMode), sizeof(struct SaveBlock1), sizeof(struct PokemonStorage),
+ offsetof(struct SaveBlock1, registeredItems), offsetof(struct SaveBlock1, berryBlenderRecords),
+};

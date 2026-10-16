@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emerald Rogue Save Editor</title>
+  <meta name="description" content="Edit Pokémon Emerald Rogue EX save files in your browser: trainer, party, PC boxes, bag and PC items.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="gem" aria-hidden="true"></span>
+      <h1>Emerald Rogue Save Editor</h1>
+    </div>
+    <div class="file-actions">
+      <label class="btn btn-primary" for="file-input">Open .sav</label>
+      <input id="file-input" type="file" accept=".sav,.srm,.fla,.sa1,.dat,*/*" hidden>
+      <button class="btn" id="download-btn" disabled>Download edited save</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section class="dropzone" id="dropzone">
+      <div class="dropzone-inner">
+        <h2>Open your Emerald Rogue save</h2>
+        <p>Drop a <code>.sav</code> file here, or use <strong>Open .sav</strong>. Everything happens in your browser — the file never leaves your computer.</p>
+        <p class="hint">Built for Emerald Rogue EX 2.1.x. Keep a backup of your original save, and save in-game (not a save state) before editing.</p>
+      </div>
+    </section>
+
+    <section id="editor" hidden>
+      <div id="warnings"></div>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="trainer" aria-selected="true">Trainer</button>
+        <button role="tab" data-tab="party">Party</button>
+        <button role="tab" data-tab="boxes">PC Boxes</button>
+        <button role="tab" data-tab="bag">Bag</button>
+        <button role="tab" data-tab="pcitems">PC Items</button>
+        <button role="tab" data-tab="advanced">Flags &amp; Vars</button>
+      </nav>
+
+      <div class="panes">
+        <div class="pane" id="pane-trainer"></div>
+        <div class="pane" id="pane-party" hidden></div>
+        <div class="pane" id="pane-boxes" hidden></div>
+        <div class="pane" id="pane-bag" hidden></div>
+        <div class="pane" id="pane-pcitems" hidden></div>
+        <div class="pane" id="pane-advanced" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="mon-editor" id="mon-editor" hidden aria-label="Pokémon editor"></aside>
+
+  <datalist id="species-list"></datalist>
+  <datalist id="move-list"></datalist>
+  <datalist id="item-list"></datalist>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <footer class="foot">
+    Unofficial fan tool for <a href="https://github.com/Pokabbie/pokeemerald-rogue">Pokémon Emerald Rogue</a>. Not affiliated with Nintendo, Game Freak or The Pokémon Company.
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
