@@ -14,6 +14,7 @@ A browser-based save editor for **Pokémon Emerald Rogue EX** (2.1.x). Open your
 - **Pokémon** — species (all 1,500+ EX species and forms), nickname, level, nature, ability (incl. hidden), gender, shiny, held item, Poké Ball, friendship, IVs, EVs, moves, PP and PP Ups, egg flag, Gigantamax factor, OT name/ID, met level; party stats are recalculated automatically
 - **Bag** — any item in any quantity, auto-sorted into the right pocket the way the game expects
 - **PC items** — the 50-slot item storage
+- **Safari Zone** — add any Pokémon (shiny, perfect IVs) to the hub's Safari Zone, fill the 45 regular and 15 legendary slots, or edit what your runs left there
 - **Unlocks** — complete or unlock all quests (or set each one), fill the Pokédex (seen / caught / shiny), unlock hub upgrades in areas you've built, master every Pokémon
 - **Bulk tools** — add every item (or every item in a pocket), max all quantities, max bag size, fill boxes with one of each species
 - **Flags & vars** — every named story flag and variable, searchable (e.g. the `SYS_RIDING_*` riding unlocks)
@@ -37,6 +38,7 @@ Every push to `main` runs the tests and deploys the site to GitHub Pages (`.gith
 - Emerald Rogue uses a flat EXP curve (300 EXP per level); levels are set accordingly.
 - Stats are computed from the standard base stats. If you play with rebalanced stats, the game fixes them the next time it recalculates.
 - During a run, your hub party is kept in Rogue's own save block; this editor edits the party you are currently carrying.
+- The Pokédex and the Pokémon you own are separate: marking species caught only fills in Pokédex entries. Use the Safari Zone tab or PC boxes to get the Pokémon themselves.
 - Completing quests marks their rewards as ready; collect them at the quest board in game to receive money, building supplies and the features they unlock.
 - Hub areas aren't added by the editor because the game places them on the hub map; build them in game, then unlock their upgrades here.
 - Run state and difficulty settings are not edited.

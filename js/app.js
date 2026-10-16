@@ -100,7 +100,7 @@
     $all('.pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   }
 
-  function renderAll() { renderTrainer(); renderParty(); renderBoxes(); renderBag(); renderPcItems(); renderUnlocks(); renderAdvanced(); }
+  function renderAll() { renderTrainer(); renderParty(); renderBoxes(); renderBag(); renderPcItems(); renderSafari(); renderUnlocks(); renderAdvanced(); }
 
   // ---------------------------------------------------------------- trainer
   function renderTrainer() {
@@ -335,6 +335,109 @@
     }, 999);
   }
 
+  // ---------------------------------------------------------------- safari zone
+  var LEGEND_SET = {};
+  (D.legendaries || []).forEach(function (id) { LEGEND_SET[id] = true; });
+  function isLegendary(id) { return !!LEGEND_SET[id]; }
+
+  function safariMonFor(species, shiny, perfect) {
+    var r = D.species[species][2], rnd = Math.floor(Math.random() * 1000);
+    return {
+      species: species, shiny: shiny ? 1 : 0, pokeball: 1, nature: rnd % 25, abilityNum: 0,
+      genderFlag: r === 254 ? 1 : (r === 0 || r === 255 ? 0 : rnd & 1),
+      ivs: perfect ? [31, 31, 31, 31, 31, 31] : [0, 0, 0, 0, 0, 0].map(function () { return Math.floor(Math.random() * 32); }),
+      nickname: speciesName(species).replace(/ \(.*\)$/, '').slice(0, 10)
+    };
+  }
+
+  function renderSafari() {
+    var s = state.save, p = $('#pane-safari');
+    if (!s.rogueBlock()) {
+      p.innerHTML = '<h2>Safari Zone</h2><p class="lede">This save\'s Rogue data doesn\'t match the layout this editor knows, so the Safari Zone can\'t be edited.</p>';
+      return;
+    }
+    var L = C.SaveFile.SAFARI_LEGENDS_START, total = s.safariCount();
+    function section(title, from, to) {
+      var rows = [], used = 0;
+      for (var i = from; i < to; i++) {
+        var m = s.getSafariMon(i);
+        if (!m) continue;
+        used++;
+        rows.push('<tr><td>' + esc(speciesName(m.species)) + (m.shiny ? ' <span class="shiny">★</span>' : '') +
+          (m.nickname && m.nickname !== speciesName(m.species) ? ' <span class="hint">"' + esc(m.nickname) + '"</span>' : '') + '</td>' +
+          '<td class="hint">' + m.ivs.join(' / ') + '</td><td class="hint">' + esc(D.natures[m.nature] || '') + '</td>' +
+          '<td class="act"><button class="btn btn-small" data-sshiny="' + i + '">' + (m.shiny ? 'Unshiny' : 'Shiny') + '</button> ' +
+          '<button class="btn btn-small" data-smax="' + i + '">Max IVs</button> ' +
+          '<button class="btn btn-small btn-danger" data-sdel="' + i + '">Remove</button></td></tr>');
+      }
+      return '<h3 class="me-section">' + title + ' <span class="hint">' + used + ' / ' + (to - from) + ' slots</span></h3>' +
+        '<div class="scroll-table"><table class="item-table"><thead><tr><th>Pokémon</th><th>IVs (HP/Atk/Def/Spe/SpA/SpD)</th><th>Nature</th><th><span class="sr">Actions</span></th></tr></thead><tbody>' +
+        (rows.join('') || '<tr><td colspan="4" class="hint">Empty.</td></tr>') + '</tbody></table></div>';
+    }
+    p.innerHTML = '<h2>Safari Zone</h2>' +
+      '<p class="lede">These are the Pokémon you can catch in the hub\'s Safari Zone. Normally the game adds Pokémon you caught on runs here. ' +
+      'Marking species as caught in the Pokédex doesn\'t add them; add them here instead. It holds ' + (L) + ' regular Pokémon, plus ' + (total - L) + ' legendaries for the Legends Cave.</p>' +
+      '<div class="tool-box"><h3 class="me-section">Add Pokémon</h3>' +
+      '<div class="add-row"><input id="sf-species" list="species-list" placeholder="Species, e.g. Dragonite" aria-label="Species">' +
+      '<label class="check"><input type="checkbox" id="sf-shiny"> Shiny</label>' +
+      '<label class="check"><input type="checkbox" id="sf-perfect" checked> Perfect IVs</label>' +
+      '<button class="btn btn-primary" id="sf-add">Add to Safari</button></div>' +
+      '<div class="add-row"><button class="btn" id="sf-fill">Fill empty regular slots</button>' +
+      '<button class="btn" id="sf-fill-legends">Fill empty legendary slots</button>' +
+      '<label class="check"><input type="checkbox" id="sf-forms"> Include alternate forms</label></div>' +
+      '<p class="hint">Filling goes in Pokédex order from the species typed above (or the start of the Pokédex), skipping species already in the Safari. ' +
+      'Legendaries always go in the legendary slots. Pokémon added here are kept longer when the game makes room for new catches.</p>' +
+      '<div class="add-row"><button class="btn" id="sf-allshiny">Make all shiny</button><button class="btn" id="sf-allmax">Max all IVs</button>' +
+      '<button class="btn btn-danger" id="sf-clear">Empty the Safari Zone</button></div></div>' +
+      section('Regular Pokémon', 0, L) + section('Legendary Pokémon', L, total);
+
+    function done(msg) { markDirty(); renderSafari(); toast(msg); }
+    function firstFree(legend) {
+      for (var i = legend ? L : 0; i < (legend ? total : L); i++) if (!s.getSafariMon(i)) return i;
+      return -1;
+    }
+    function startSpecies() {
+      var v = $('#sf-species', p).value.trim();
+      if (!v) return 1;
+      var id = parseRef(v, D.species, 0);
+      return id > 0 && isValidSpecies(id) ? id : -1;
+    }
+    bind('#sf-add', 'click', function () {
+      var id = startSpecies();
+      if (id <= 0 || !$('#sf-species', p).value.trim()) { toast('Pick a species from the list'); return; }
+      var slot = firstFree(isLegendary(id));
+      if (slot < 0) { toast('The ' + (isLegendary(id) ? 'legendary' : 'regular') + ' slots are full. Remove one first.'); return; }
+      s.setSafariMon(slot, safariMonFor(id, $('#sf-shiny', p).checked, $('#sf-perfect', p).checked));
+      done('Added ' + speciesName(id) + ' to the Safari Zone');
+    }, p);
+    function fill(legend) {
+      var start = startSpecies();
+      if (start < 0) { toast('Pick a species from the list'); return; }
+      var forms = $('#sf-forms', p).checked, have = {}, added = 0, last = 0, sp = start;
+      for (var i = 0; i < total; i++) { var m = s.getSafariMon(i); if (m) have[m.species] = true; }
+      for (var slot = firstFree(legend); slot >= 0; slot = firstFree(legend)) {
+        while (sp < D.species.length && (have[sp] || isLegendary(sp) !== legend || !(forms ? isValidSpecies(sp) : isBaseForm(sp)))) sp++;
+        if (sp >= D.species.length) break;
+        s.setSafariMon(slot, safariMonFor(sp, $('#sf-shiny', p).checked, $('#sf-perfect', p).checked));
+        have[sp] = true; added++; last = sp; sp++;
+      }
+      done(added ? 'Added ' + added + ' Pokémon (up to ' + speciesName(last) + ')' : 'No empty slots or no species left');
+    }
+    bind('#sf-fill', 'click', function () { fill(false); }, p);
+    bind('#sf-fill-legends', 'click', function () { fill(true); }, p);
+    function each(fn) { for (var i = 0; i < total; i++) { var m = s.getSafariMon(i); if (m) { fn(m); s.setSafariMon(i, m); } } }
+    bind('#sf-allshiny', 'click', function () { each(function (m) { m.shiny = 1; }); done('Every Safari Pokémon is now shiny'); }, p);
+    bind('#sf-allmax', 'click', function () { each(function (m) { m.ivs = [31, 31, 31, 31, 31, 31]; }); done('Every Safari Pokémon has perfect IVs'); }, p);
+    bind('#sf-clear', 'click', function () {
+      if (!confirm('Remove every Pokémon from the Safari Zone?')) return;
+      for (var i = 0; i < total; i++) s.setSafariMon(i, null);
+      done('Safari Zone emptied');
+    }, p);
+    $all('[data-sdel]', p).forEach(function (b) { b.addEventListener('click', function () { s.setSafariMon(+b.dataset.sdel, null); done('Removed'); }); });
+    $all('[data-sshiny]', p).forEach(function (b) { b.addEventListener('click', function () { var i = +b.dataset.sshiny, m = s.getSafariMon(i); m.shiny = m.shiny ? 0 : 1; s.setSafariMon(i, m); done(m.shiny ? 'Now shiny' : 'No longer shiny'); }); });
+    $all('[data-smax]', p).forEach(function (b) { b.addEventListener('click', function () { var i = +b.dataset.smax, m = s.getSafariMon(i); m.ivs = [31, 31, 31, 31, 31, 31]; s.setSafariMon(i, m); done('IVs maxed'); }); });
+  }
+
   // ---------------------------------------------------------------- unlocks
   var QUEST_STATUS = [['locked', 'Locked'], ['unlocked', 'Unlocked'], ['ready', 'Complete, rewards to collect'], ['claimed', 'Complete, rewards collected']];
   var DIFFICULTIES = ['Easy', 'Average', 'Hard', 'Brutal'];
@@ -454,6 +557,7 @@
     var c = dexCounts();
     return '<h3 class="me-section">Pokédex</h3>' +
       '<p class="hint">' + c.seen + ' seen · ' + c.caught + ' caught · ' + c.shiny + ' caught shiny, out of ' + c.total + ' species and forms.</p>' +
+      '<p class="hint">This only fills in Pokédex entries. To get Pokémon you can actually catch, use the Safari Zone tab, or put them straight into your PC boxes.</p>' +
       '<div class="add-row"><button class="btn btn-primary" data-dex="2">Mark all caught</button>' +
       '<button class="btn" data-dex="3">Mark all caught shiny</button>' +
       '<button class="btn" data-dex="1">Mark all seen</button>' +

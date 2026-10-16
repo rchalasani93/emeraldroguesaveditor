@@ -157,6 +157,20 @@ test('Rogue block: quests, hub upgrades, mastery and Pokédex', function () {
   eq(!!t.rogueBlock(), true, 'stream still valid after edits');
 });
 
+test('Safari Zone: add, edit and clear Pokémon', function () {
+  var s = makeRogueSave();
+  eq(s.safariCount(), 60);
+  eq(s.getSafariMon(0), null);
+  s.setSafariMon(0, { species: 149, shiny: 1, ivs: [31, 30, 29, 28, 27, 26], pokeball: 12, nature: 17, abilityNum: 2, genderFlag: 1, nickname: 'Dragonite' });
+  s.setSafariMon(45, { species: 384, nickname: 'Rayquaza' });
+  var t = new C.SaveFile(s.export()), m = t.getSafariMon(0);
+  eq(m.species, 149); eq(m.shiny, 1); eq(m.ivs.join(), '31,30,29,28,27,26'); eq(m.pokeball, 12); eq(m.nature, 17);
+  eq(m.abilityNum, 2); eq(m.genderFlag, 1); eq(m.nickname, 'Dragonite'); eq(m.priority, 90);
+  eq(t.getSafariMon(45).species, 384);
+  t.setSafariMon(0, null); eq(t.getSafariMon(0), null);
+  eq(!!t.rogueBlock(), true);
+});
+
 test('newest slot is chosen when both slots are valid', function () {
   var a = makeSave(3), b = makeSave(4);
   var both = new Uint8Array(0x20000); both.set(a.subarray(0, 0xE000), 0); both.set(b.subarray(0, 0xE000), 0xE000);

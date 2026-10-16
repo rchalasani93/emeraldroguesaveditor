@@ -66,6 +66,13 @@ for key, body in re.findall(r'\[(HUB_UPGRADE_\w+)\]\s*=\s*\{(.*?)\n    \},', hub
     hidden = bool(re.search(r'\.isHidden = TRUE', body))
     upgrades[ev(key)] = [name, area, reqs, hidden]
 
+# ---------------------------------------------------------------- legendaries
+# RoguePokedex_IsSpeciesLegendary decides which Safari Zone slots a mon goes in
+dex_src = open(os.path.join(src, "src/rogue_pokedex.c"), encoding="utf-8").read()
+fn = dex_src[dex_src.index("bool8 RoguePokedex_IsSpeciesLegendary(u16 species)"):]
+fn = fn[:fn.index("\n}\n")]
+legendaries = re.findall(r'case (SPECIES_\w+):', fn[fn.index("switch(species)", fn.index("#endif")):])
+
 # ---------------------------------------------------------------- flags / vars
 flags, vars_ = {}, {}
 for line in open(flagsvars):
@@ -80,6 +87,7 @@ out = {
     "quests": quests,
     "hubAreas": areas,
     "hubUpgrades": upgrades,
+    "legendaries": legendaries,
     "flags": sorted([[k, v] for k, v in flags.items()]),
     "vars": sorted([[k, v] for k, v in vars_.items()]),
 }

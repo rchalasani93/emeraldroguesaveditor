@@ -734,6 +734,37 @@
     this.storage.fill(on ? 0xFF : 0, m.mastery.offset, m.mastery.offset + m.mastery.count);
   };
 
+  // --- Safari Zone -------------------------------------------------------------
+  // Pokémon caught on runs that can be caught again in the hub's Safari Zone.
+  // struct RogueSafariMon (20 bytes): see include/rogue.h. Slots 0-44 regular, 45-59 legendary.
+  SaveFile.SAFARI_LEGENDS_START = 45;
+  SaveFile.prototype.safariCount = function () { var m = this.rogueBlock(); return m ? m.safariMons.count : 0; };
+  SaveFile.prototype.getSafariMon = function (i) {
+    var m = this.rogueBlock(), o = m.safariMons.offset + i * 20, st = this.storage;
+    var w0 = u32(st, o), w1 = u32(st, o + 4), species = w0 & 0xFFFF;
+    if (!species) return null;
+    return {
+      species: species,
+      ivs: [getBits(w0, 16, 5), getBits(w0, 21, 5), getBits(w0, 26, 5), getBits(w1, 0, 5), getBits(w1, 5, 5), getBits(w1, 10, 5)],
+      shiny: w0 >>> 31,
+      pokeball: getBits(w1, 15, 5), nature: getBits(w1, 20, 5), abilityNum: getBits(w1, 25, 2), genderFlag: getBits(w1, 27, 1),
+      nickname: decodeString(st, o + 8, 10), priority: st[o + 18], customMonLookup: st[o + 19]
+    };
+  };
+  SaveFile.prototype.setSafariMon = function (i, mon) {
+    var m = this.rogueBlock(), o = m.safariMons.offset + i * 20, st = this.storage;
+    st.fill(0, o, o + 20);
+    if (!mon) { st[o + 8] = 0xFF; return; } // ZeroSafariMon
+    var iv = mon.ivs || [31, 31, 31, 31, 31, 31];
+    var w0 = (mon.species & 0xFFFF) | ((iv[0] & 31) << 16) | ((iv[1] & 31) << 21) | ((iv[2] & 31) << 26) | ((mon.shiny ? 1 : 0) << 31);
+    var w1 = (iv[3] & 31) | ((iv[4] & 31) << 5) | ((iv[5] & 31) << 10) | (((mon.pokeball || 1) & 31) << 15) |
+      (((mon.nature || 0) & 31) << 20) | (((mon.abilityNum || 0) & 3) << 25) | (((mon.genderFlag || 0) & 1) << 27);
+    w32(st, o, w0 >>> 0); w32(st, o + 4, w1 >>> 0);
+    writeString(st, o + 8, 10, mon.nickname || '', 0x00);
+    st[o + 18] = mon.priority === undefined ? 90 : mon.priority; // higher = kept longer when the Safari is full
+    st[o + 19] = mon.customMonLookup || 0;
+  };
+
   // --- Writing ---------------------------------------------------------------
   SaveFile.prototype._commitPokemon = function () {
     var i, filled = [];

@@ -78,6 +78,18 @@ for u in unlocks["hubUpgrades"]:
     if u:
         u[0] = re.sub(r"\s+", " ", u[0].replace("{PKMN}", " Pokémon ").replace("{POKEBLOCK}", "Pokéblock")).strip()
 
+# Legendary species (and their forms) use the Safari Zone's legend slots
+id_by_const = {}
+for sid, names in const_by_id.items():
+    for n in names:
+        id_by_const["SPECIES_" + n] = sid
+legend_ids = set(id_by_const[n] for n in unlocks["legendaries"] if n in id_by_const)
+legend_bases = set(species[i][0] for i in legend_ids if "(" not in species[i][0])
+for sid, sp in enumerate(species):
+    base = sp[0].split(" (")[0]
+    if base in legend_bases and not sp[0].startswith("Floette"):
+        legend_ids.add(sid)
+
 out = {
     "game": "Pokemon Emerald Rogue EX",
     "numSpecies": len(species),
@@ -92,6 +104,7 @@ out = {
     "quests": unlocks["quests"],
     "hubAreas": unlocks["hubAreas"],
     "hubUpgrades": unlocks["hubUpgrades"],
+    "legendaries": sorted(legend_ids),
     "flags": unlocks["flags"],
     "vars": unlocks["vars"],
     "pockets": ["None", "Items", "Held Items", "Medicine", "Stones", "Poké Balls",
