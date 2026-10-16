@@ -73,6 +73,11 @@ for sid, s in enumerate(raw["species"]):
 moves = [[m[0], m[1], m[2], m[3], m[4]] for m in raw["moves"]]
 items = [[it[0] if it[2] else "", it[1] if it[2] else 0] for it in raw["items"]]
 
+unlocks = json.load(open(os.path.join(HERE, "unlocks.json"), encoding="utf-8"))
+for u in unlocks["hubUpgrades"]:
+    if u:
+        u[0] = re.sub(r"\s+", " ", u[0].replace("{PKMN}", " Pokémon ").replace("{POKEBLOCK}", "Pokéblock")).strip()
+
 out = {
     "game": "Pokemon Emerald Rogue EX",
     "numSpecies": len(species),
@@ -84,6 +89,11 @@ out = {
     "types": ["Normal", "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost",
               "Steel", "???", "Fire", "Water", "Grass", "Electric", "Psychic", "Ice",
               "Dragon", "Dark", "Fairy", "Stellar"],
+    "quests": unlocks["quests"],
+    "hubAreas": unlocks["hubAreas"],
+    "hubUpgrades": unlocks["hubUpgrades"],
+    "flags": unlocks["flags"],
+    "vars": unlocks["vars"],
     "pockets": ["None", "Items", "Held Items", "Medicine", "Stones", "Poké Balls",
                 "TMs & HMs", "Berries", "Pokéblock", "Key Items"],
 }

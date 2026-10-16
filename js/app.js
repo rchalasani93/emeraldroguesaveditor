@@ -100,7 +100,7 @@
     $all('.pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   }
 
-  function renderAll() { renderTrainer(); renderParty(); renderBoxes(); renderBag(); renderPcItems(); renderAdvanced(); }
+  function renderAll() { renderTrainer(); renderParty(); renderBoxes(); renderBag(); renderPcItems(); renderUnlocks(); renderAdvanced(); }
 
   // ---------------------------------------------------------------- trainer
   function renderTrainer() {
@@ -186,8 +186,24 @@
           '<span class="lv">Lv ' + sm.level + '</span></button>';
       }
     });
-    html += '</div></div>';
+    html += '</div></div>' +
+      '<h3 class="me-section">Fill boxes</h3>' +
+      '<p class="hint">Puts one Pokémon of each species into empty slots, in Pokédex order, starting from the species you choose. Existing Pokémon are left alone.</p>' +
+      '<div class="add-row"><input id="fill-start" list="species-list" placeholder="Start from (default: Bulbasaur)" aria-label="Start species">' +
+      '<input id="fill-level" type="number" min="1" max="100" value="5" aria-label="Level" title="Level">' +
+      '<label class="check"><input type="checkbox" id="fill-forms"> Include alternate forms</label>' +
+      '<label class="check"><input type="checkbox" id="fill-shiny"> Shiny</label></div>' +
+      '<div class="add-row"><button class="btn btn-primary" id="fill-box">Fill this box</button>' +
+      '<button class="btn" id="fill-all">Fill all boxes</button>' +
+      '<button class="btn btn-danger" id="clear-box">Empty this box</button></div>';
     p.innerHTML = html;
+    bind('#fill-box', 'click', function () { fillBoxes([bi]); }, p);
+    bind('#fill-all', 'click', function () { fillBoxes(s.boxes.map(function (_, i) { return i; })); }, p);
+    bind('#clear-box', 'click', function () {
+      if (!confirm('Remove every Pokémon from ' + (s.getBoxName(bi) || 'this box') + '?')) return;
+      s.boxes[bi] = s.boxes[bi].map(function () { var e = new Pokemon(null, false); e.markEmpty(); return e; });
+      markDirty(); closeEditor(); renderBoxes(); toast('Box emptied');
+    }, p);
     bind('#box-select', 'change', function (e) { state.box = +e.target.value; renderBoxes(); }, p);
     bind('#box-prev', 'click', function () { state.box = (bi + s.boxes.length - 1) % s.boxes.length; renderBoxes(); }, p);
     bind('#box-next', 'click', function () { state.box = (bi + 1) % s.boxes.length; renderBoxes(); }, p);
@@ -195,6 +211,30 @@
     $all('[data-slot]', p).forEach(function (b) {
       b.addEventListener('click', function () { openEditor({ kind: 'box', box: bi, index: +b.dataset.slot }); });
     });
+  }
+
+  function isBaseForm(id) { return isValidSpecies(id) && !/\(/.test(D.species[id][0]); }
+
+  function fillBoxes(boxIndexes) {
+    var s = state.save, p = $('#pane-boxes');
+    var start = $('#fill-start', p).value.trim() ? parseRef($('#fill-start', p).value, D.species, 0) : 1;
+    if (start <= 0 || !isValidSpecies(start)) { toast('Pick a start species from the list'); return; }
+    var level = clamp($('#fill-level', p).value, 1, 100);
+    var forms = $('#fill-forms', p).checked, shiny = $('#fill-shiny', p).checked;
+    var sp = start, placed = 0, lastSpecies = 0;
+    boxIndexes.forEach(function (bx) {
+      for (var slot = 0; slot < s.boxes[bx].length; slot++) {
+        if (!s.boxes[bx][slot].isEmptySlot) continue;
+        while (sp < D.species.length && !(forms ? isValidSpecies(sp) : isBaseForm(sp))) sp++;
+        if (sp >= D.species.length) return;
+        var mon = Pokemon.create({ species: sp, level: level, otId: s.otId, otName: s.playerName, pokeball: 1, moves: [33, 0, 0, 0] }, D);
+        if (shiny) mon.isShiny = 1;
+        var r = D.species[sp][2]; mon.genderFlag = r === 254 ? 1 : (r === 0 || r === 255 ? 0 : (mon.personality & 1));
+        s.boxes[bx][slot] = mon; placed++; lastSpecies = sp; sp++;
+      }
+    });
+    markDirty(); renderBoxes();
+    toast(placed ? 'Added ' + placed + ' Pokémon (up to ' + speciesName(lastSpecies) + '). Fill again from #' + sp + ' after making room.' : 'No empty slots or no species left');
   }
 
   // ---------------------------------------------------------------- items
@@ -242,10 +282,44 @@
     addItem.addEventListener('input', function () { addItem.classList.remove('invalid'); });
   }
 
+  function isGivableItem(id) {
+    var it = D.items[id];
+    return !!(it && it[0] && it[0] !== '????????' && it[1] > 0);
+  }
+
   function renderBag() {
-    var s = state.save, p = $('#pane-bag'), list = s.getBag();
-    p.innerHTML = '<h2>Bag</h2><p class="lede">Items are grouped by pocket automatically, the way the game expects. Quantities above 999 may be capped in game.</p>' +
+    var s = state.save, p = $('#pane-bag'), list = s.getBag(), cap = s.bagSlotCapacity();
+    var pocketOpts = D.pockets.map(function (n, i) { return i ? '<option value="' + i + '">' + esc(n) + '</option>' : ''; }).join('');
+    p.innerHTML = '<h2>Bag</h2><p class="lede">Items are grouped by pocket automatically, the way the game expects. ' +
+      'Using ' + list.length + ' of ' + cap + ' slots (the game\'s maximum is 450).</p>' +
+      '<div class="tool-box"><h3 class="me-section">Bulk tools</h3>' +
+      '<div class="add-row"><select id="bulk-pocket" aria-label="Pocket"><option value="all">Every pocket</option>' + pocketOpts + '</select>' +
+      '<input type="number" id="bulk-qty" min="1" max="999" value="99" aria-label="Quantity">' +
+      '<button class="btn btn-primary" id="bulk-add">Add all items</button></div>' +
+      '<div class="add-row"><button class="btn" id="bulk-max">Set every quantity to 999</button>' +
+      '<button class="btn" id="bulk-cap"' + (s.bagCapacityUpgrades >= C.SaveFile.MAX_BAG_UPGRADES ? ' disabled' : '') + '>Max out bag size (450 slots)</button>' +
+      '<button class="btn btn-danger" id="bulk-clear">Empty the bag</button></div>' +
+      '<p class="hint">There are more items than bag slots, so "Every pocket" stops when the bag is full. Some items exist in the data but are unused in Emerald Rogue.</p></div>' +
       itemTable(list, { grouped: true, max: 999 });
+    function commit(l) {
+      try { s.setBag(l, itemPocket); } catch (e) { toast(e.message); return false; }
+      markDirty(); renderBag(); return true;
+    }
+    bind('#bulk-add', 'click', function () {
+      var pocket = $('#bulk-pocket', p).value, qty = clamp($('#bulk-qty', p).value, 1, 999);
+      var have = {}, added = 0, skipped = 0;
+      list.forEach(function (e) { have[e.item] = e; });
+      for (var id = 1; id < D.items.length; id++) {
+        if (!isGivableItem(id) || (pocket !== 'all' && itemPocket(id) !== +pocket)) continue;
+        if (have[id]) { have[id].quantity = Math.max(have[id].quantity, qty); continue; }
+        if (list.length >= s.bagSlotCapacity()) { skipped++; continue; }
+        list.push({ item: id, quantity: qty }); added++;
+      }
+      if (commit(list)) toast('Added ' + added + ' items' + (skipped ? '; ' + skipped + ' did not fit' : ''));
+    }, p);
+    bind('#bulk-max', 'click', function () { list.forEach(function (e) { e.quantity = 999; }); if (commit(list)) toast('All quantities set to 999'); }, p);
+    bind('#bulk-cap', 'click', function () { s.bagCapacityUpgrades = C.SaveFile.MAX_BAG_UPGRADES; markDirty(); renderBag(); toast('Bag size maxed'); }, p);
+    bind('#bulk-clear', 'click', function () { if (confirm('Remove every item from the bag?') && commit([])) toast('Bag emptied'); }, p);
     wireItemTable(p, list, function (l, rerender) {
       try { s.setBag(l, itemPocket); } catch (e) { toast(e.message); return; }
       markDirty(); if (rerender) renderBag();
@@ -261,25 +335,186 @@
     }, 999);
   }
 
+  // ---------------------------------------------------------------- unlocks
+  var QUEST_STATUS = [['locked', 'Locked'], ['unlocked', 'Unlocked'], ['ready', 'Complete, rewards to collect'], ['claimed', 'Complete, rewards collected']];
+  var DIFFICULTIES = ['Easy', 'Average', 'Hard', 'Brutal'];
+
+  function renderUnlocks() {
+    var s = state.save, p = $('#pane-unlocks'), rb = s.rogueBlock();
+    if (!rb) {
+      p.innerHTML = '<h2>Unlocks</h2><p class="lede">This save\'s Rogue data doesn\'t match the layout this editor knows (Emerald Rogue EX 2.1.x), so quests, hub upgrades and masteries are not editable. The Pokédex tools below still work.</p>' + dexSection();
+      wireDex(p); return;
+    }
+    var nameOk = s.questCount() === D.quests.length;
+    var counts = { locked: 0, unlocked: 0, ready: 0, claimed: 0 };
+    for (var q = 0; q < s.questCount(); q++) counts[s.getQuestStatus(q)]++;
+    var diffOpts = DIFFICULTIES.map(function (d, i) { return '<option value="' + i + '"' + (i === 3 ? ' selected' : '') + '>' + d + '</option>'; }).join('');
+
+    var html = '<h2>Unlocks</h2><p class="lede">Quests, the Pokédex, hub upgrades and Pokémon masteries. ' +
+      'Completed quests are best left as "rewards to collect": the game then hands out their rewards (money, building supplies, new quests and features) when you visit the quest board.</p>' +
+
+      '<h3 class="me-section">Quests</h3>' +
+      '<p class="hint">' + counts.claimed + ' collected · ' + counts.ready + ' ready to collect · ' + counts.unlocked + ' in progress · ' + counts.locked + ' locked</p>' +
+      '<div class="add-row"><label class="inline"><span class="hint">Reward difficulty</span><select id="q-diff">' + diffOpts + '</select></label>' +
+      '<button class="btn btn-primary" id="q-complete">Complete all quests</button>' +
+      '<button class="btn" id="q-unlock">Unlock all quests</button>' +
+      '<button class="btn btn-danger" id="q-reset">Reset all quests</button></div>' +
+      '<div class="add-row"><select id="q-filter" aria-label="Show"><option value="">All categories</option><option>Main</option><option>Challenge</option><option>Mastery</option></select>' +
+      '<input id="q-search" placeholder="Search quests…" aria-label="Search quests"></div>' +
+      '<div class="scroll-table"><table class="item-table" id="q-table"><thead><tr><th>Quest</th><th>Type</th><th>Status</th></tr></thead><tbody></tbody></table></div>' +
+
+      dexSection() +
+
+      '<h3 class="me-section">Hub upgrades</h3>' +
+      '<p class="hint">Upgrades only work in areas you have built; areas are placed on the hub map in game, so they can\'t be added here. "Unlock all" respects each upgrade\'s requirements. Some (like the Unique Lab) come from quest rewards.</p>' +
+      '<div class="add-row"><button class="btn btn-primary" id="hub-all">Unlock all upgrades in built areas</button>' +
+      '<button class="btn btn-danger" id="hub-none">Remove all upgrades</button></div>' +
+      '<div class="check-grid">' + D.hubAreas.map(function (area, ai) {
+        var built = s.hasHubArea(ai);
+        var ups = D.hubUpgrades.map(function (u, ui) { return [u, ui]; }).filter(function (x) { return x[0] && x[0][1] === ai && !x[0][3]; });
+        return '<div class="check-group"><strong>' + esc(area || 'Area ' + ai) + '</strong> <span class="hint">' + (built ? 'built' : 'not built') + '</span>' +
+          (ups.length ? ups.map(function (x) {
+            return '<label class="check"><input type="checkbox" data-upgrade="' + x[1] + '"' + (s.hasHubUpgrade(x[1]) ? ' checked' : '') + (built ? '' : ' disabled') + '> ' + esc(x[0][0]) + '</label>';
+          }).join('') : '<span class="hint">No upgrades</span>') + '</div>';
+      }).join('') + '</div>' +
+
+      '<h3 class="me-section">Pokémon masteries</h3>' +
+      '<p class="hint">' + s.masteryCount() + ' mastery flags set. Mastery quests above track the same thing; complete those to get their rewards.</p>' +
+      '<div class="add-row"><button class="btn btn-primary" id="m-all">Master every Pokémon</button><button class="btn btn-danger" id="m-none">Clear masteries</button></div>';
+    p.innerHTML = html;
+
+    var tbody = $('#q-table tbody', p), filter = $('#q-filter', p), search = $('#q-search', p);
+    function drawQuests() {
+      var f = filter.value, term = search.value.trim().toLowerCase(), rows = [];
+      for (var i = 0; i < s.questCount(); i++) {
+        var meta = nameOk ? D.quests[i] : ['Quest #' + i, '?'];
+        if (f && meta[1] !== f) continue;
+        if (term && meta[0].toLowerCase().indexOf(term) < 0) continue;
+        var st = s.getQuestStatus(i);
+        rows.push('<tr><td>' + esc(meta[0]) + '</td><td class="hint">' + esc(meta[1]) + '</td><td><select data-quest="' + i + '" aria-label="Status of ' + esc(meta[0]) + '">' +
+          QUEST_STATUS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === st ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></td></tr>');
+      }
+      tbody.innerHTML = rows.join('') || '<tr><td colspan="3" class="hint">No quests match.</td></tr>';
+      $all('[data-quest]', tbody).forEach(function (sel) {
+        sel.addEventListener('change', function () { s.setQuestStatus(+sel.dataset.quest, sel.value, +$('#q-diff', p).value); markDirty(); });
+      });
+    }
+    filter.addEventListener('change', drawQuests);
+    search.addEventListener('input', drawQuests);
+    drawQuests();
+
+    function allQuests(status, msg) {
+      var d = +$('#q-diff', p).value;
+      for (var i = 0; i < s.questCount(); i++) {
+        var cur = s.getQuestStatus(i);
+        if (status === 'unlocked' && cur !== 'locked') continue; // don't undo progress
+        if (status === 'ready' && cur === 'claimed' && s.getQuest(i).completeDifficulty >= d) continue;
+        s.setQuestStatus(i, status, d);
+      }
+      markDirty(); renderUnlocks(); toast(msg);
+    }
+    bind('#q-complete', 'click', function () { allQuests('ready', 'All quests complete. Collect the rewards at the quest board in game.'); }, p);
+    bind('#q-unlock', 'click', function () { allQuests('unlocked', 'All quests unlocked'); }, p);
+    bind('#q-reset', 'click', function () { if (confirm('Reset every quest to locked? The game re-unlocks the starting quests on load.')) allQuests('locked', 'Quests reset'); }, p);
+
+    $all('[data-upgrade]', p).forEach(function (cb) {
+      cb.addEventListener('change', function () { s.setHubUpgrade(+cb.dataset.upgrade, cb.checked); markDirty(); });
+    });
+    bind('#hub-all', 'click', function () {
+      // Repeat until nothing changes so chains of required upgrades unlock in order.
+      // Hidden upgrades are granted by quests, so they are never set here.
+      var n = 0, changed = true;
+      while (changed) {
+        changed = false;
+        D.hubUpgrades.forEach(function (u, i) {
+          if (!u || u[3] || !s.hasHubArea(u[1]) || s.hasHubUpgrade(i)) return;
+          if (!u[2].every(function (r) { return s.hasHubUpgrade(r); })) return;
+          s.setHubUpgrade(i, true); n++; changed = true;
+        });
+      }
+      markDirty(); renderUnlocks(); toast(n + ' upgrades unlocked');
+    }, p);
+    bind('#hub-none', 'click', function () {
+      if (!confirm('Remove every hub upgrade?')) return;
+      D.hubUpgrades.forEach(function (u, i) { if (u && !u[3]) s.setHubUpgrade(i, false); });
+      markDirty(); renderUnlocks(); toast('Upgrades removed');
+    }, p);
+    bind('#m-all', 'click', function () { s.setAllMastery(true); markDirty(); renderUnlocks(); toast('Every Pokémon mastered'); }, p);
+    bind('#m-none', 'click', function () { if (confirm('Clear all mastery flags?')) { s.setAllMastery(false); markDirty(); renderUnlocks(); toast('Masteries cleared'); } }, p);
+    wireDex(p);
+  }
+
+  function dexCounts() {
+    var s = state.save, c = [0, 0, 0, 0], total = 0;
+    for (var i = 1; i < D.species.length; i++) if (isValidSpecies(i)) { total++; c[s.getDexState(i)]++; }
+    return { seen: c[1] + c[2] + c[3], caught: c[2] + c[3], shiny: c[3], total: total };
+  }
+
+  function dexSection() {
+    var c = dexCounts();
+    return '<h3 class="me-section">Pokédex</h3>' +
+      '<p class="hint">' + c.seen + ' seen · ' + c.caught + ' caught · ' + c.shiny + ' caught shiny, out of ' + c.total + ' species and forms.</p>' +
+      '<div class="add-row"><button class="btn btn-primary" data-dex="2">Mark all caught</button>' +
+      '<button class="btn" data-dex="3">Mark all caught shiny</button>' +
+      '<button class="btn" data-dex="1">Mark all seen</button>' +
+      '<button class="btn btn-danger" data-dex="0">Clear Pokédex</button></div>';
+  }
+
+  function wireDex(p) {
+    $all('[data-dex]', p).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var st = +b.dataset.dex, s = state.save;
+        if (st === 0 && !confirm('Clear every Pokédex entry?')) return;
+        for (var i = 1; i < D.species.length; i++) {
+          if (!isValidSpecies(i)) continue;
+          if (st === 0 || s.getDexState(i) < st) s.setDexState(i, st);
+        }
+        markDirty(); renderUnlocks(); toast('Pokédex updated');
+      });
+    });
+  }
+
   // ---------------------------------------------------------------- advanced
   function renderAdvanced() {
     var s = state.save, p = $('#pane-advanced');
-    p.innerHTML = '<h2>Flags &amp; Vars</h2><p class="lede">Raw story flags (0–2399) and variables (0x4000–0x40FF). Only change these if you know the ID you need from the Emerald Rogue source — wrong values can break events.</p>' +
-      '<div class="form-grid">' +
-      field('Flag ID', '<input id="f-id" type="number" min="0" max="2399" value="0">') +
-      field('Flag state', '<label class="check"><input type="checkbox" id="f-val"> Set</label>') +
-      field('Var ID (hex)', '<input id="v-id" value="4000">') +
-      field('Var value', '<input id="v-val" type="number" min="0" max="65535">') +
-      '</div>';
-    var fid = $('#f-id', p), fval = $('#f-val', p), vid = $('#v-id', p), vval = $('#v-val', p);
-    function refreshFlag() { fval.checked = !!s.getFlag(clamp(fid.value, 0, 2399)); }
-    function varIndex() { var n = parseInt(vid.value, 16); if (isNaN(n)) return -1; if (n >= 0x4000) n -= 0x4000; return n >= 0 && n < 256 ? n : -1; }
-    function refreshVar() { var i = varIndex(); vid.classList.toggle('invalid', i < 0); vval.value = i < 0 ? '' : s.getVar(i); }
-    fid.addEventListener('input', refreshFlag);
-    fval.addEventListener('change', function () { s.setFlag(clamp(fid.value, 0, 2399), fval.checked); markDirty(); });
-    vid.addEventListener('input', refreshVar);
-    vval.addEventListener('change', function () { var i = varIndex(); if (i < 0) return; s.setVar(i, clamp(vval.value, 0, 65535)); markDirty(); });
-    refreshFlag(); refreshVar();
+    p.innerHTML = '<h2>Flags &amp; Vars</h2><p class="lede">Every named story flag and variable from the Emerald Rogue source. ' +
+      'Many are leftovers from Pokémon Emerald and do nothing in Rogue; others control game state, so change only what you understand. ' +
+      'Useful ones include the <code>SYS_RIDING_*</code> flags (riding abilities) and <code>BADGE*_GET</code>.</p>' +
+      '<h3 class="me-section">Flags</h3>' +
+      '<div class="add-row"><input id="f-search" placeholder="Search flags, e.g. SYS_RIDING" aria-label="Search flags">' +
+      '<label class="check"><input type="checkbox" id="f-onlyset"> Only set flags</label></div>' +
+      '<div class="scroll-table"><table class="item-table"><thead><tr><th>Flag</th><th>ID</th><th>Set</th></tr></thead><tbody id="f-body"></tbody></table></div>' +
+      '<p class="hint" id="f-more"></p>' +
+      '<h3 class="me-section">Variables</h3>' +
+      '<div class="add-row"><input id="v-search" placeholder="Search variables" aria-label="Search variables"></div>' +
+      '<div class="scroll-table"><table class="item-table"><thead><tr><th>Variable</th><th>ID</th><th>Value</th></tr></thead><tbody id="v-body"></tbody></table></div>';
+    var LIMIT = 200;
+    function drawFlags() {
+      var term = $('#f-search', p).value.trim().toUpperCase(), onlySet = $('#f-onlyset', p).checked, rows = [], hits = 0;
+      D.flags.forEach(function (f) {
+        if (term && f[1].indexOf(term) < 0 && String(f[0]) !== term && '0X' + f[0].toString(16).toUpperCase() !== term) return;
+        var on = s.getFlag(f[0]);
+        if (onlySet && !on) return;
+        if (++hits > LIMIT) return;
+        rows.push('<tr><td>' + esc(f[1]) + '</td><td class="hint">0x' + f[0].toString(16).toUpperCase() + '</td><td><input type="checkbox" data-flag="' + f[0] + '"' + (on ? ' checked' : '') + ' aria-label="' + esc(f[1]) + '"></td></tr>');
+      });
+      $('#f-body', p).innerHTML = rows.join('') || '<tr><td colspan="3" class="hint">No flags match.</td></tr>';
+      $('#f-more', p).textContent = hits > LIMIT ? 'Showing ' + LIMIT + ' of ' + hits + ' matches. Search to narrow it down.' : '';
+      $all('[data-flag]', p).forEach(function (cb) { cb.addEventListener('change', function () { s.setFlag(+cb.dataset.flag, cb.checked); markDirty(); }); });
+    }
+    function drawVars() {
+      var term = $('#v-search', p).value.trim().toUpperCase(), rows = [];
+      D.vars.forEach(function (v) {
+        if (term && v[1].indexOf(term) < 0) return;
+        rows.push('<tr><td>' + esc(v[1]) + '</td><td class="hint">0x' + (0x4000 + v[0]).toString(16).toUpperCase() + '</td><td class="num"><input type="number" min="0" max="65535" data-var="' + v[0] + '" value="' + s.getVar(v[0]) + '" aria-label="' + esc(v[1]) + '"></td></tr>');
+      });
+      $('#v-body', p).innerHTML = rows.join('');
+      $all('[data-var]', p).forEach(function (inp) { inp.addEventListener('change', function () { s.setVar(+inp.dataset.var, clamp(inp.value, 0, 65535)); inp.value = s.getVar(+inp.dataset.var); markDirty(); }); });
+    }
+    $('#f-search', p).addEventListener('input', drawFlags);
+    $('#f-onlyset', p).addEventListener('change', drawFlags);
+    $('#v-search', p).addEventListener('input', drawVars);
+    drawFlags(); drawVars();
   }
 
   // ---------------------------------------------------------------- mon editor

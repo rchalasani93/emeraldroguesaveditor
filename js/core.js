@@ -626,6 +626,114 @@
   SaveFile.prototype.getVar = function (index) { return u16(this.sb1, OFF.sb1.vars + index * 2); };
   SaveFile.prototype.setVar = function (index, v) { w16(this.sb1, OFF.sb1.vars + index * 2, v); };
 
+  // --- Bag capacity -----------------------------------------------------------
+  SaveFile.MAX_BAG_UPGRADES = 37; // ITEM_BAG_MAX_CAPACITY_UPGRADE: 450 slots
+  SaveFile.prototype.bagSlotCapacity = function () {
+    return Math.min(OFF.sb1.bagCount, OFF.sb1.bagCount - SaveFile.MAX_BAG_UPGRADES * 10 + this.bagCapacityUpgrades * 10);
+  };
+
+  // --- Pokédex -----------------------------------------------------------------
+  // Two bit arrays indexed by species: flags1 bit = seen, flags2 bit = caught.
+  // Both set = caught shiny (see GetSetPokedexSpeciesFlag).
+  var DEX = { flags1: 0x30B4, flags2: 0x3179, bytes: 197 };
+  SaveFile.prototype.getDexState = function (species) {
+    var i = species >> 3, m = 1 << (species & 7);
+    return ((this.sb1[DEX.flags1 + i] & m) ? 1 : 0) | ((this.sb1[DEX.flags2 + i] & m) ? 2 : 0);
+  };
+  SaveFile.prototype.setDexState = function (species, state) {
+    var i = species >> 3, m = 1 << (species & 7);
+    if (state & 1) this.sb1[DEX.flags1 + i] |= m; else this.sb1[DEX.flags1 + i] &= ~m;
+    if (state & 2) this.sb1[DEX.flags2 + i] |= m; else this.sb1[DEX.flags2 + i] &= ~m;
+  };
+
+  // --- Rogue save block --------------------------------------------------------
+  // A count-prefixed stream (see SerializeRogueBlockInternal in rogue_save.c).
+  // [element size, expected count] for each array, in stream order; "*n" = plain n bytes.
+  var ROGUE_STREAM = [
+    ['quests', 8, 222], ['campaign', 4, 7], ['areaBuilt', 1, 2], ['areaCoords', 4, 11], ['upgradeFlags', 1, 6],
+    ['homeDecorations', 4, 192], ['homeStyles', 1, 3], ['wanderingMons', 2, 10], ['weatherState', '*', 2],
+    ['timeOfDay', '*', 2], ['season', '*', 1], ['safariMons', 20, 60], ['daycare', 84, 3], ['toggleBits', 1, 3],
+    ['rangeValues', 1, 9], ['uniqueMons', 8, 5], ['safariCustomIds', 4, 16], ['mastery', 1, 72]
+  ];
+  SaveFile.prototype._mapRogueBlock = function () {
+    var st = this.storage, o = OFF.storage.rogueBlock, map = {};
+    if (this.rogue.secretId !== ROGUE_SECRET_ID || this.rogue.saveVersion < 5) return null;
+    o += 8; // version, format, secret id, rogue version, species count
+    for (var i = 0; i < ROGUE_STREAM.length; i++) {
+      var e = ROGUE_STREAM[i];
+      if (e[1] === '*') { map[e[0]] = { offset: o, count: e[2] }; o += e[2]; continue; }
+      var count = u16(st, o);
+      if (count !== e[2]) return null; // unknown version: refuse to edit
+      map[e[0]] = { offset: o + 2, count: count, size: e[1] };
+      o += 2 + count * e[1];
+    }
+    return map;
+  };
+  SaveFile.prototype.rogueBlock = function () {
+    if (this._rogueMap === undefined) this._rogueMap = this._mapRogueBlock();
+    return this._rogueMap;
+  };
+
+  // Quest state: u32 stateFlags:16, highestCompleteDifficulty:3, highestCollectedRewardDifficulty:3
+  var QUEST = { UNLOCKED: 1, ACTIVE: 2, PINNED: 4, PENDING_REWARDS: 8, NEW_UNLOCK: 16, HAS_COMPLETE: 32, DIFFICULTY_NONE: 4 };
+  SaveFile.QUEST = QUEST;
+  SaveFile.prototype.questCount = function () { var m = this.rogueBlock(); return m ? m.quests.count : 0; };
+  SaveFile.prototype.getQuest = function (id) {
+    var m = this.rogueBlock(), w = u32(this.storage, m.quests.offset + id * 8);
+    return { flags: w & 0xFFFF, completeDifficulty: (w >>> 16) & 7, collectedDifficulty: (w >>> 19) & 7 };
+  };
+  SaveFile.prototype.setQuest = function (id, q) {
+    var m = this.rogueBlock(), o = m.quests.offset + id * 8, w = u32(this.storage, o);
+    w = setBits(w, 0, 16, q.flags);
+    w = setBits(w, 16, 3, q.completeDifficulty);
+    w = setBits(w, 19, 3, q.collectedDifficulty);
+    w32(this.storage, o, w);
+  };
+  /** status: 'locked' | 'unlocked' | 'ready' (complete, rewards to collect) | 'claimed' */
+  SaveFile.prototype.getQuestStatus = function (id) {
+    var q = this.getQuest(id);
+    if (q.flags & QUEST.HAS_COMPLETE) return (q.flags & QUEST.PENDING_REWARDS) ? 'ready' : 'claimed';
+    return (q.flags & QUEST.UNLOCKED) ? 'unlocked' : 'locked';
+  };
+  SaveFile.prototype.setQuestStatus = function (id, status, difficulty) {
+    var q = this.getQuest(id), keep = q.flags & QUEST.PINNED;
+    if (difficulty === undefined) difficulty = 3; // Brutal: every reward tier
+    if (status === 'locked') q = { flags: 0, completeDifficulty: 0, collectedDifficulty: 0 };
+    else if (status === 'unlocked') {
+      q.flags = QUEST.UNLOCKED | keep | ((q.flags & QUEST.UNLOCKED) ? (q.flags & QUEST.ACTIVE) : QUEST.NEW_UNLOCK);
+      q.completeDifficulty = 0; q.collectedDifficulty = 0;
+    } else if (status === 'ready') {
+      var wasComplete = (q.flags & QUEST.HAS_COMPLETE) && q.completeDifficulty < QUEST.DIFFICULTY_NONE;
+      var wasCollected = wasComplete && q.collectedDifficulty < QUEST.DIFFICULTY_NONE;
+      q.flags = QUEST.UNLOCKED | QUEST.HAS_COMPLETE | QUEST.PENDING_REWARDS | keep;
+      q.completeDifficulty = wasComplete ? Math.max(difficulty, q.completeDifficulty) : difficulty;
+      // Keep tiers already collected so rewards aren't handed out twice
+      q.collectedDifficulty = wasCollected ? q.collectedDifficulty : QUEST.DIFFICULTY_NONE;
+    } else if (status === 'claimed') {
+      q.flags = QUEST.UNLOCKED | QUEST.HAS_COMPLETE | keep;
+      q.completeDifficulty = difficulty; q.collectedDifficulty = difficulty;
+    }
+    this.setQuest(id, q);
+  };
+
+  function blockBit(save, name, index, value) {
+    var m = save.rogueBlock(), o = m[name].offset + (index >> 3), mask = 1 << (index & 7);
+    if (value === undefined) return (save.storage[o] & mask) ? 1 : 0;
+    if (value) save.storage[o] |= mask; else save.storage[o] &= ~mask;
+  }
+  SaveFile.prototype.hasHubArea = function (area) { return blockBit(this, 'areaBuilt', area); };
+  SaveFile.prototype.hasHubUpgrade = function (id) { return blockBit(this, 'upgradeFlags', id); };
+  SaveFile.prototype.setHubUpgrade = function (id, on) { blockBit(this, 'upgradeFlags', id, on); };
+  SaveFile.prototype.masteryCount = function () {
+    var m = this.rogueBlock(), n = 0;
+    for (var i = 0; i < m.mastery.count; i++) for (var b = this.storage[m.mastery.offset + i]; b; b &= b - 1) n++;
+    return n;
+  };
+  SaveFile.prototype.setAllMastery = function (on) {
+    var m = this.rogueBlock();
+    this.storage.fill(on ? 0xFF : 0, m.mastery.offset, m.mastery.offset + m.mastery.count);
+  };
+
   // --- Writing ---------------------------------------------------------------
   SaveFile.prototype._commitPokemon = function () {
     var i, filled = [];

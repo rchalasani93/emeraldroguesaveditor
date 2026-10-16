@@ -21,3 +21,13 @@ cd /path/to/this/repo && python3 tools/datagen/build_data.py
 - `spnames.c` maps species IDs to their `SPECIES_*` constants, used to label forms ("Samurott (Hisuian)").
 - `layout.c` builds a reference Pokémon from the real structs; its output is `tests/fixture-pokemon-plain.hex`.
 - `offsets.c` prints SaveBlock offsets. Compile it with `arm-none-eabi-gcc -mthumb -mabi=apcs-gnu -march=armv4t -S` (the ABI matters: it pads small structs to 4 bytes).
+
+## Quests, hub upgrades, flags and vars
+
+Quest IDs must match the save (Emerald Rogue EX 2.1.x has 222). Use the source at the matching release (e.g. commit `e5a5b9d4a`), build `tools/Pokabbie/Build/CustomJson` with `make`, compile `flagsvars.c` the same way as `dump.c` (use `-iquote include` so the game's `strings.h` doesn't clash), then:
+
+```sh
+./flagsvars > flagsvars.txt
+python3 tools/datagen/extract_unlocks.py /path/to/rogue /path/to/rogue/tools/Pokabbie/Build/CustomJson/customjson flagsvars.txt
+python3 tools/datagen/build_data.py
+```

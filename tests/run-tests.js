@@ -126,6 +126,37 @@ test('edit trainer, party, box, bag and PC items then re-read', function () {
   }
 });
 
+// Writes a Rogue save block stream (counts as in EX 2.1.x) into a fresh save
+function makeRogueSave() {
+  var s = new C.SaveFile(makeSave(2));
+  var o = C.OFFSETS.storage.rogueBlock + 8;
+  var layout = [[8, 222], [4, 7], [1, 2], [4, 11], [1, 6], [4, 192], [1, 3], [2, 10], ['*', 2], ['*', 2], ['*', 1], [20, 60], [84, 3], [1, 3], [1, 9], [8, 5], [4, 16], [1, 72]];
+  layout.forEach(function (e) {
+    if (e[0] === '*') { o += e[1]; return; }
+    s.storage[o] = e[1] & 0xFF; s.storage[o + 1] = e[1] >> 8; o += 2 + e[0] * e[1];
+  });
+  return new C.SaveFile(s.export());
+}
+
+test('Rogue block: quests, hub upgrades, mastery and Pokédex', function () {
+  var s = makeRogueSave();
+  if (!s.rogueBlock()) throw new Error('rogue block not mapped');
+  eq(s.questCount(), 222); eq(D.quests.length, 222, 'quest names match save');
+  s.setQuestStatus(5, 'ready', 3);
+  s.setQuestStatus(6, 'claimed', 2);
+  s.setQuestStatus(7, 'unlocked');
+  s.setHubUpgrade(47, true);
+  s.setAllMastery(true);
+  s.setDexState(384, 3); s.setDexState(1573, 2);
+  var t = new C.SaveFile(s.export());
+  eq(t.getQuestStatus(5), 'ready'); eq(t.getQuest(5).completeDifficulty, 3); eq(t.getQuest(5).collectedDifficulty, 4);
+  eq(t.getQuestStatus(6), 'claimed'); eq(t.getQuestStatus(7), 'unlocked'); eq(t.getQuestStatus(8), 'locked');
+  eq(t.hasHubUpgrade(47), 1); eq(t.hasHubUpgrade(46), 0);
+  eq(t.masteryCount(), 72 * 8);
+  eq(t.getDexState(384), 3); eq(t.getDexState(1573), 2); eq(t.getDexState(1), 0);
+  eq(!!t.rogueBlock(), true, 'stream still valid after edits');
+});
+
 test('newest slot is chosen when both slots are valid', function () {
   var a = makeSave(3), b = makeSave(4);
   var both = new Uint8Array(0x20000); both.set(a.subarray(0, 0xE000), 0); both.set(b.subarray(0, 0xE000), 0xE000);

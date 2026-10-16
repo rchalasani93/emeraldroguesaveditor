@@ -227,3 +227,15 @@ input.invalid { border-color: var(--danger); }
   .toast { transition: none; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Unlocks / flags ------------------------------------------------------ */
+.pane h3.me-section { margin-top: 28px; }
+.scroll-table { max-height: 420px; overflow: auto; border: 2px solid var(--line); border-radius: var(--radius-sm); }
+.scroll-table .item-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.scroll-table select { width: auto; max-width: 100%; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+.check-group { display: flex; flex-direction: column; gap: 4px; background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; }
+.check-group .check { font-weight: 400; }
+.tool-box { background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 4px 16px 12px; margin-bottom: 18px; }
+.tool-box h3.me-section { margin-top: 10px; }
+.add-row select { width: auto; }
