@@ -239,3 +239,6 @@ input.invalid { border-color: var(--danger); }
 .tool-box { background: var(--bg); border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 4px 16px 12px; margin-bottom: 18px; }
 .tool-box h3.me-section { margin-top: 10px; }
 .add-row select { width: auto; }
+
+/* Numbers in the pixel font are hard to read (5 looks like 8), so counts use the body font */
+.me-section .hint { font-family: var(--font-body); font-weight: 400; font-size: 0.9rem; }
