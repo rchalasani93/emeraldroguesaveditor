@@ -1,5 +1,9 @@
 # Emerald Rogue Save Editor
 
+[![Deploy](https://github.com/rchalasani93/emeraldroguesaveditor/actions/workflows/pages.yml/badge.svg)](https://github.com/rchalasani93/emeraldroguesaveditor/actions/workflows/pages.yml) [![CodeQL](https://github.com/rchalasani93/emeraldroguesaveditor/actions/workflows/codeql.yml/badge.svg)](https://github.com/rchalasani93/emeraldroguesaveditor/actions/workflows/codeql.yml)
+
+**Use it online: https://rchalasani93.github.io/emeraldroguesaveditor/**
+
 A browser-based save editor for **Pokémon Emerald Rogue EX** (2.1.x). Open your `.sav`, edit it, download a fixed-up copy. Everything runs locally in your browser — nothing is uploaded.
 
 ## What you can edit
@@ -21,9 +25,9 @@ Section checksums and Pokémon checksums/encryption are rebuilt on download.
 3. Make your edits. In the Pokémon editor press **Save to slot** to keep changes.
 4. Click **Download edited save** and put the file back where your emulator expects it (same file name).
 
-### Host it on GitHub Pages
+### Deployment
 
-Settings → Pages → *Deploy from a branch* → `main` / `(root)`. The editor is plain HTML/CSS/JS with no build step.
+Every push to `main` runs the tests and deploys the site to GitHub Pages (`.github/workflows/pages.yml`). Pages must be set to *Source: GitHub Actions* in Settings → Pages. CodeQL scans the code weekly and on every push, and Dependabot keeps the workflow actions up to date.
 
 ## Notes and limits
 
