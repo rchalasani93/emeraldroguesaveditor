@@ -40,7 +40,7 @@ jobs:
       - name: Assemble static site
         run: |
           mkdir -p _site
-          cp -r index.html css js .nojekyll _site/
+          cp -r index.html sitemap.xml css js .nojekyll _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
