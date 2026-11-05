@@ -146,7 +146,7 @@
     s.party.forEach(function (m, i) {
       var sel = state.selected && state.selected.kind === 'party' && state.selected.index === i ? ' selected' : '';
       if (m.isEmptySlot) {
-        html += '<button class="slot-card empty' + sel + '" data-party="' + i + '">Empty slot — add Pokémon</button>';
+        html += '<button class="slot-card empty' + sel + '" data-party="' + i + '">Empty slot: add a Pokémon</button>';
       } else {
         var sm = monSummary(m), pct = m.maxHP ? Math.round(100 * m.hp / m.maxHP) : 0;
         html += '<button class="slot-card' + sel + '" data-party="' + i + '">' +
